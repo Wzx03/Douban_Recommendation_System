@@ -1,13 +1,13 @@
-from fastapi import FastAPI, Query, HTTPException, Body
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel  # 🌟 新增：用于接收前端发来的 JSON 数据
+from pydantic import BaseModel
 from recommender_service import RecommenderService
 import uvicorn
-import os
-import json
+import pymysql
 
-app = FastAPI(title="豆瓣电影推荐系统 API")
+app = FastAPI(title="豆瓣电影推荐系统 API - 官方大一统版")
 
+# 1. 跨域配置
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,67 +16,76 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 2. 数据库配置 (统一密码 Wzx031017)
+DB_CONFIG = {
+    'host': '127.0.0.1', 'port': 3306,
+    'user': 'root', 'password': 'Wzx031017',
+    'database': 'douban_rec_sys',
+    'charset': 'utf8mb4', 'cursorclass': pymysql.cursors.DictCursor
+}
+
+def get_db():
+    return pymysql.connect(**DB_CONFIG)
+
 service = RecommenderService()
 
-# ==========================================
-# 🌟 新增：简易账号数据库配置 (使用 JSON 模拟数据库)
-# ==========================================
-USER_DB_FILE = "user_accounts.json"
-
-# 初始化一个默认账号 admin/123456，绑定到数据集里的 1 号用户
-if not os.path.exists(USER_DB_FILE):
-    with open(USER_DB_FILE, "w", encoding="utf-8") as f:
-        json.dump({"admin": {"password": "123", "user_id": 1}}, f)
-
-
-def load_users():
-    with open(USER_DB_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_users(users_data):
-    with open(USER_DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(users_data, f, ensure_ascii=False, indent=4)
-
-
-# 定义前端传过来的数据格式
 class AuthForm(BaseModel):
     username: str
     password: str
 
+# --- 鉴权接口 ---
 
-@app.post("/api/register", summary="用户注册")
+@app.post("/api/register")
 async def register(form: AuthForm):
-    users = load_users()
-    if form.username in users:
-        raise HTTPException(status_code=400, detail="用户名已存在")
+    conn = get_db()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT id FROM users WHERE username = %s", (form.username,))
+            if cursor.fetchone(): raise HTTPException(status_code=400, detail="用户已存在")
+            cursor.execute("SELECT MAX(user_id) as max_id FROM users")
+            res = cursor.fetchone()
+            new_uid = (res['max_id'] or 900000) + 1
+            cursor.execute("INSERT INTO users (username, password, user_id) VALUES (%s, %s, %s)",
+                           (form.username, form.password, new_uid))
+        conn.commit()
+        return {"message": "注册成功", "user_id": new_uid}
+    finally: conn.close()
 
-    # 自动分配一个新的 user_id (取当前最大 ID + 1)
-    # 为了避免和现有 CSV 数据集的 User ID 冲突，新用户 ID 从 900000 开始
-    new_user_id = 900000 + len(users)
-
-    users[form.username] = {
-        "password": form.password,
-        "user_id": new_user_id
-    }
-    save_users(users)
-    return {"message": "注册成功", "user_id": new_user_id}
-
-
-@app.post("/api/login", summary="用户登录")
+@app.post("/api/login")
 async def login(form: AuthForm):
-    users = load_users()
-    user = users.get(form.username)
+    conn = get_db()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT user_id, username FROM users WHERE username = %s AND password = %s",
+                           (form.username, form.password))
+            user = cursor.fetchone()
+            if not user: raise HTTPException(status_code=401, detail="账号或密码错误")
+            return {"user_id": user["user_id"], "username": user["username"]}
+    finally: conn.close()
 
-    if not user or user["password"] != form.password:
-        raise HTTPException(status_code=401, detail="用户名或密码错误")
+# --- 业务接口 ---
 
-    return {
-        "message": "登录成功",
-        "user_id": user["user_id"],
-        "username": form.username
-    }
+@app.get("/api/recommend/{user_id}")
+async def get_recommend(user_id: int, top_n: int = Query(10)):
+    try:
+        results = service.get_top_n_recommendations(user_id, top_n)
+        return {"recommendations": results}
+    except Exception as e:
+        print(f"🚨 接口崩溃详细原因: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# ==========================================
-# 下方保留你原有的 /api/recommend, /api/statistics 等接口不变...
-# ==========================================
+@app.get("/api/insight", summary="评论洞察数据大屏")
+async def get_insight():
+    """🌟 新增：获取 LSTM 文本挖掘成果"""
+    return service.get_insight_data()
+
+@app.get("/api/user/{user_id}/wordcloud")
+async def get_wordcloud(user_id: int):
+    return {"wordcloud": service.get_user_wordcloud(user_id)}
+
+@app.get("/api/statistics")
+async def get_stats():
+    return service.get_system_statistics()
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=5000)

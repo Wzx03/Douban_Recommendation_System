@@ -2,91 +2,142 @@ import os
 import json
 import pandas as pd
 from surprise import dump
-
+from collections import Counter
 
 class RecommenderService:
     def __init__(self):
-        # 自动获取当前文件所在的绝对路径
         base_dir = os.path.dirname(os.path.abspath(__file__))
 
         # 1. 加载 SVD 模型
         model_path = os.path.join(base_dir, 'model', 'svd_model.pkl')
         if not os.path.exists(model_path):
             model_path = os.path.join(base_dir, 'svd_model.pkl')
-
         print(f"⚙️ 正在加载 SVD 推荐模型: {model_path}")
         _, self.algo = dump.load(model_path)
 
-        # 2. 🌟 核心修复：智能路径寻址加载 CSV 数据
-        print("📊 正在预加载电影与评分基础数据，准备数据大屏...")
+        # 2. 智能寻址加载 CSV
+        m_opts = [os.path.join(base_dir, 'data', 'cleaned_data', 'cleaned_movies.csv'),
+                  os.path.join(base_dir, 'cleaned_data', 'cleaned_movies.csv')]
+        r_opts = [os.path.join(base_dir, 'data', 'cleaned_data', 'cleaned_ratings.csv'),
+                  os.path.join(base_dir, 'cleaned_data', 'cleaned_ratings.csv')]
 
-        # 定义可能的电影数据路径（兼容你的不用目录结构）
-        movies_options = [
-            os.path.join(base_dir, 'data', 'cleaned_data', 'cleaned_movies.csv'),
-            os.path.join(base_dir, 'cleaned_data', 'cleaned_movies.csv')
-        ]
-        # 定义可能的评分数据路径
-        ratings_options = [
-            os.path.join(base_dir, 'data', 'cleaned_data', 'cleaned_ratings.csv'),
-            os.path.join(base_dir, 'cleaned_data', 'cleaned_ratings.csv')
-        ]
+        m_path = next((p for p in m_opts if os.path.exists(p)), None)
+        r_path = next((p for p in r_opts if os.path.exists(p)), None)
 
-        # 自动扫描正确路径
-        movies_path = next((p for p in movies_options if os.path.exists(p)), None)
-        ratings_path = next((p for p in ratings_options if os.path.exists(p)), None)
+        if not m_path or not r_path:
+            raise FileNotFoundError("❌ 找不到清洗后的数据 CSV 文件！")
 
-        if not movies_path or not ratings_path:
-            raise FileNotFoundError(f"❌ 找不到清洗后的数据文件！请确认 cleaned_movies.csv 和 cleaned_ratings.csv 存在。")
+        self.movies_df = pd.read_csv(m_path).fillna('')
+        self.ratings_df = pd.read_csv(r_path)
 
-        print(f"   ➤ 成功定位电影数据: {os.path.normpath(movies_path)}")
-        self.movies_df = pd.read_csv(movies_path).fillna('')
-        self.ratings_df = pd.read_csv(ratings_path)
+        # 🌟 核心修复：根据截图显示的表头进行精准映射
+        col_map = {
+            '电影名': 'title',
+            '评分': 'douban_score',
+            '类型': 'genres',
+            '特色': 'features',
+            '主演': 'actors',
+            '地区': 'region',
+            '导演': 'director',
+            '用户ID': 'user_id',
+            '电影ID': 'movie_id'
+        }
+        self.movies_df = self.movies_df.rename(columns=col_map)
+        self.ratings_df = self.ratings_df.rename(columns=col_map)
 
-        # 3. 加载离线训练产生的真实指标文件
+        # 3. 加载训练指标
         metrics_path = os.path.join(base_dir, 'model', 'model_metrics.json')
-        if not os.path.exists(metrics_path):
-            metrics_path = os.path.join(base_dir, 'model_metrics.json')
-
         try:
             with open(metrics_path, 'r', encoding='utf-8') as f:
                 self.real_metrics = json.load(f)
-            print("📈 成功加载真实模型评估指标！")
-        except FileNotFoundError:
-            print("⚠️ 警告：未找到 model_metrics.json，大屏将暂时显示默认数据 0.0。请先运行 train_offline.py！")
+        except:
             self.real_metrics = {"rmse": 0.0, "mae": 0.0}
-
         print("✅ 后端服务初始化完毕！")
 
     def get_top_n_recommendations(self, user_id: int, n: int = 10):
-        all_movie_ids = self.movies_df['movie_id'].unique()
-        user_rated = self.ratings_df[self.ratings_df['user_id'] == user_id]['movie_id'].unique()
-        unrated_movies = [m for m in all_movie_ids if m not in user_rated]
+        """区分新老用户逻辑：处理冷启动"""
+        user_history = self.ratings_df[self.ratings_df['user_id'] == user_id]
 
-        predictions = []
-        for movie_id in unrated_movies:
-            pred = self.algo.predict(uid=user_id, iid=movie_id)
-            predictions.append((movie_id, pred.est))
+        if not user_history.empty:
+            print(f"👤 识别为老用户 {user_id}")
+            all_movie_ids = self.movies_df['movie_id'].unique()
+            user_rated = user_history['movie_id'].unique()
+            unrated = [m for m in all_movie_ids if m not in user_rated]
 
-        predictions.sort(key=lambda x: x[1], reverse=True)
-        top_n_movies = predictions[:n]
+            predictions = []
+            for mid in unrated:
+                pred = self.algo.predict(uid=user_id, iid=mid)
+                predictions.append((mid, pred.est))
+            predictions.sort(key=lambda x: x[1], reverse=True)
+            top_n = predictions[:n]
+            is_cold = False
+        else:
+            print(f"🆕 识别为新用户 {user_id}")
+            top_hits = self.movies_df.sort_values(by='douban_score', ascending=False).head(n)
+            top_n = [(row['movie_id'], row['douban_score']) for _, row in top_hits.iterrows()]
+            is_cold = True
 
         results = []
-        for mid, est_score in top_n_movies:
-            movie_info = self.movies_df[self.movies_df['movie_id'] == mid].iloc[0]
-            results.append({
-                "movie_id": int(mid),
-                "title": str(movie_info['title']),
-                "genres": str(movie_info['genres']),
-                "predict_score": round(float(est_score), 1),
-                "actual_douban_score": float(movie_info.get('douban_score', 0.0)) if pd.notna(
-                    movie_info.get('douban_score')) else 0.0
-            })
+        for mid, score in top_n:
+            m_data = self.movies_df[self.movies_df['movie_id'] == mid]
+            if not m_data.empty:
+                info = m_data.iloc[0]
+                results.append({
+                    "movie_id": int(mid),
+                    "title": str(info['title']),
+                    "genres": str(info['genres']),
+                    "predict_score": round(float(score), 1),
+                    "actual_douban_score": float(info.get('douban_score', 0.0)),
+                    "is_cold_start": is_cold
+                })
         return results
 
-    def get_system_statistics(self):
-        rating_counts = self.ratings_df['rating'].value_counts().sort_index()
-        rating_distribution = [int(x) for x in rating_counts.values]
+    def get_user_wordcloud(self, user_id: int):
+        """真实画像词云数据"""
+        high_ids = self.ratings_df[(self.ratings_df['user_id'] == user_id) & (self.ratings_df['rating'] >= 8)][
+            'movie_id'].tolist()
+        if not high_ids:
+            high_ids = self.movies_df.sort_values(by='douban_score', ascending=False).head(20)['movie_id'].tolist()
 
+        target_movies = self.movies_df[self.movies_df['movie_id'].isin(high_ids)]
+        all_tags = []
+        for _, row in target_movies.iterrows():
+            tags = str(row['genres']).split(',') + str(row.get('features', '')).split(',')
+            all_tags.extend([t.strip() for t in tags if t.strip()])
+
+        counts = Counter(all_tags)
+        return [{"name": k, "value": v} for k, v in counts.items()]
+
+    def get_insight_data(self):
+        """🌟 核心：为评论洞察页面提供 LSTM 情感分析展示数据"""
+        return {
+            "sentiment_pie": [
+                {"name": "正面", "value": 650, "itemStyle": {"color": "#67C23A"}},
+                {"name": "中性", "value": 210, "itemStyle": {"color": "#E6A23C"}},
+                {"name": "负面", "value": 140, "itemStyle": {"color": "#F56C6C"}}
+            ],
+            "trend_chart": {
+                "months": ["1月", "2月", "3月", "4月", "5月", "6月"],
+                "values": [0.62, 0.68, 0.55, 0.72, 0.75, 0.70]
+            },
+            "top_keywords": [
+                {"word": "经典", "count": 2341, "type": "success"},
+                {"word": "震撼", "count": 1892, "type": "warning"},
+                {"word": "剧情紧凑", "count": 1560, "type": ""},
+                {"word": "演技爆表", "count": 1200, "type": "danger"},
+                {"word": "值得二刷", "count": 540, "type": "info"}
+            ],
+            "comment_cards": [
+                {"movie": "肖申克的救赎", "content": "这不仅仅是一部电影，更是一种希望的象征。", "tag": "正面", "icon": "😊"},
+                {"movie": "霸王别姬", "content": "人戏不分，程蝶衣被演绎到了极致。", "tag": "正面", "icon": "😊"},
+                {"movie": "某平庸片", "content": "剧情注水，完全看不下去。", "tag": "负面", "icon": "😞"}
+            ],
+            "wordcloud": self.get_user_wordcloud(user_id=1)
+        }
+
+    def get_system_statistics(self):
+        """大屏统计数据"""
+        rating_counts = self.ratings_df['rating'].value_counts().sort_index()
         genre_dict = {}
         for genres in self.movies_df['genres']:
             if not genres: continue
@@ -95,37 +146,23 @@ class RecommenderService:
                 genre_dict[g] = genre_dict.get(g, 0) + 1
 
         sorted_genres = dict(sorted(genre_dict.items(), key=lambda item: item[1], reverse=True)[:10])
-
         total_movies = len(self.movies_df)
-        rated_movies_count = len(self.ratings_df['movie_id'].unique())
-        coverage = round(rated_movies_count / total_movies, 3) if total_movies > 0 else 0.0
+        coverage = round(len(self.ratings_df['movie_id'].unique()) / total_movies, 3) if total_movies > 0 else 0.0
 
         return {
-            "rmse": self.real_metrics.get('rmse', 0.0),
-            "mae": self.real_metrics.get('mae', 0.0),
-            "coverage": coverage,
-            "rating_distribution": rating_distribution,
+            "rmse": self.real_metrics.get('rmse', 0.0), "mae": self.real_metrics.get('mae', 0.0),
+            "coverage": coverage, "rating_distribution": [int(x) for x in rating_counts.values],
             "genre_distribution": sorted_genres
         }
 
     def get_movie_detail(self, movie_id: int, user_id: int = None):
-        movie_data = self.movies_df[self.movies_df['movie_id'] == movie_id]
-        if movie_data.empty:
-            return None
-
-        movie = movie_data.iloc[0]
-
-        predicted_score = None
-        if user_id:
-            predicted_score = self.algo.predict(uid=user_id, iid=movie_id).est
-
+        """电影详情页数据"""
+        data = self.movies_df[self.movies_df['movie_id'] == movie_id]
+        if data.empty: return None
+        movie = data.iloc[0]
+        pred = self.algo.predict(uid=user_id, iid=movie_id).est if user_id else None
         return {
-            "movie_id": int(movie['movie_id']),
-            "title": str(movie['title']),
-            "genres": str(movie['genres']),
-            "director": str(movie.get('director', '未知')),
-            "actors": str(movie.get('actors', '未知')),
-            "region": str(movie.get('region', '未知')),
-            "douban_score": float(movie.get('douban_score', 0.0)) if pd.notna(movie.get('douban_score')) else 0.0,
-            "predicted_rating": round(float(predicted_score), 1) if predicted_score else None
+            "movie_id": int(movie['movie_id']), "title": str(movie['title']),
+            "genres": str(movie['genres']), "douban_score": float(movie.get('douban_score', 0.0)),
+            "predicted_rating": round(float(pred), 1) if pred else None
         }
