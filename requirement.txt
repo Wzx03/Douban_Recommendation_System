@@ -1,0 +1,7 @@
+pip install sqlalchemy pymysql 安装数据库连接依赖
+pip install "numpy<2" -i https://pypi.tuna.tsinghua.edu.cn/simple 安装numpy老版本
+ C:\Users\admin1\AppData\Local\Programs\Python\Python310\python.exe -m pip install "numpy<2" -i https://pypi.tuna.tsinghua.edu.cn/simple
+https://visualstudio.microsoft.com/zh-hans/downloads/ 安装编译器 desk c
+pip install scikit-surprise -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir
+pip install scikit-surprise -i https://pypi.tuna.tsinghua.edu.cn/simple --no-build-isolation
+pip install fastapi uvicorn 搭建 FastAPI 框架
