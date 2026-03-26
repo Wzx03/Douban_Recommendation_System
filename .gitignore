@@ -1,0 +1,21 @@
+# Python 忽略项
+__pycache__/
+*.pyc
+venv/
+.env
+.idea/
+
+# 数据与模型 (重点！GitHub 单文件限 100MB，数据集通常很大)
+cleaned_data/
+raw_data/
+*.pkl
+*.csv
+
+# 前端忽略项
+node_modules/
+dist/
+*.local
+
+# 操作系统忽略项
+.DS_Store
+Thumbs.db
