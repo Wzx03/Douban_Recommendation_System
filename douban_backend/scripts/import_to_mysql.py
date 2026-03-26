@@ -3,7 +3,7 @@ import numpy as np
 from sqlalchemy import create_engine, text
 
 # 1. 数据库连接
-db_password = ''
+db_password = 'Wzx031017'
 engine = create_engine(f'mysql+pymysql://root:{db_password}@localhost:3306/douban_rec_sys?charset=utf8mb4')
 
 print("正在加载数据...")
@@ -27,6 +27,7 @@ movies_to_db = movies_to_db.astype(object).where(pd.notna(movies_to_db), None)
 unique_users = original_users_df[['用户ID', '用户名']].drop_duplicates(subset=['用户ID'])
 users_to_db = unique_users.rename(columns={'用户ID': 'user_id', '用户名': 'username'})
 # 保险起见，用户表也严格去重一次
+users_to_db['password'] = '123456'
 users_to_db = users_to_db.drop_duplicates(subset=['user_id'], keep='first')
 users_to_db = users_to_db.astype(object).where(pd.notna(users_to_db), None)
 

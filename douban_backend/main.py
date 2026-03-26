@@ -16,7 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. 数据库配置 (统一密码 Wzx031017)
+# 2. 数据库配置
 DB_CONFIG = {
     'host': '127.0.0.1', 'port': 3306,
     'user': 'root', 'password': 'Wzx031017',
@@ -73,6 +73,12 @@ async def get_recommend(user_id: int, top_n: int = Query(10)):
     except Exception as e:
         print(f"🚨 接口崩溃详细原因: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/movie/{movie_id}", summary="获取电影详情")
+async def get_movie(movie_id: int, user_id: int = Query(None)):
+    detail = service.get_movie_detail(movie_id, user_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="电影不存在")
+    return detail
 
 @app.get("/api/insight", summary="评论洞察数据大屏")
 async def get_insight():

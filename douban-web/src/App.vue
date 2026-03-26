@@ -1,11 +1,15 @@
 <template>
-  <el-container class="layout-container">
+  <div v-if="route.path === '/login'">
+    <router-view />
+  </div>
+
+  <el-container class="layout-container" v-else>
     <el-aside width="220px" class="aside">
       <div class="logo">
         <el-icon :size="22" color="#fff"><Film /></el-icon>
         <span>豆瓣推荐系统</span>
       </div>
-
+      
       <el-menu
         :default-active="activeMenu"
         class="el-menu-vertical"
@@ -26,7 +30,7 @@
           <el-icon><ChatLineRound /></el-icon>
           <span>评论情感洞察</span>
         </el-menu-item>
-        <el-menu-item index="/login">
+        <el-menu-item index="/login" @click="handleLogout">
           <el-icon><SwitchButton /></el-icon>
           <span>退出登录</span>
         </el-menu-item>
@@ -42,7 +46,7 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
-          <span class="user-badge">👤 用户 ID: {{ userId }}</span>
+          <span class="user-badge">👤 当前用户: {{ userName }} (ID: {{ userId }})</span>
         </div>
       </el-header>
 
@@ -55,16 +59,27 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { Film, Menu, DataAnalysis, ChatLineRound, SwitchButton } from '@element-plus/icons-vue';
 
 const route = useRoute();
-const userId = ref(localStorage.getItem('currentUserId') || '1');
+const router = useRouter();
+
+// 获取当前登录用户的基础信息
+const userId = computed(() => localStorage.getItem('currentUserId') || '未登录');
+const userName = computed(() => localStorage.getItem('currentUserName') || '游客');
+
 const activeMenu = computed(() => route.path);
 const pageTitle = computed(() => {
   const maps = { '/recommend': '个性化推荐', '/analysis': '数据统计', '/insight': '评论洞察' };
   return maps[route.path] || '欢迎使用';
 });
+
+// 退出登录逻辑
+const handleLogout = () => {
+  localStorage.clear();
+  router.push('/login');
+};
 </script>
 
 <style scoped>
@@ -74,6 +89,6 @@ const pageTitle = computed(() => {
 .logo span { margin-left: 10px; font-size: 16px; }
 .el-menu { border-right: none; }
 .header { background: #fff; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
-.user-badge { font-size: 14px; color: #666; background: #f5f7fa; padding: 5px 15px; border-radius: 20px; }
+.user-badge { font-size: 14px; color: #666; background: #f5f7fa; padding: 5px 15px; border-radius: 20px; font-weight: bold; }
 .main-content { background-color: #f0f2f5; padding: 20px; overflow-y: auto; }
 </style>

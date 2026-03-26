@@ -35,7 +35,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import axios from 'axios';
+import { reqLogin, reqRegister } from '@/api/index.js'; // 🌟 使用统一 API 接口
 
 const router = useRouter();
 const activeTab = ref('login');
@@ -44,7 +44,6 @@ const loading = ref(false);
 const loginForm = ref({ username: '', password: '' });
 const regForm = ref({ username: '', password: '' });
 
-// 统一处理登录和注册
 const handleAuth = async (action) => {
   const isLogin = action === 'login';
   const form = isLogin ? loginForm.value : regForm.value;
@@ -56,23 +55,21 @@ const handleAuth = async (action) => {
 
   loading.value = true;
   try {
-    const url = isLogin ? 'http://127.0.0.1:5000/api/login' : 'http://127.0.0.1:5000/api/register';
-    const res = await axios.post(url, form);
-
-    ElMessage.success(res.data.message);
-
-    // 如果是登录成功，把 user_id 存到本地，然后跳转到推荐首页
     if (isLogin) {
-      localStorage.setItem('currentUserId', res.data.user_id);
-      localStorage.setItem('currentUserName', res.data.username);
+      const res = await reqLogin(form); // 🌟 调用 API
+      localStorage.setItem('currentUserId', res.user_id);
+      localStorage.setItem('currentUserName', res.username);
+      ElMessage.success('登录成功！');
       router.push('/recommend');
     } else {
-      // 注册成功后自动切回登录页面
+      const res = await reqRegister(form); // 🌟 调用 API
+      ElMessage.success(`注册成功！您的用户ID为：${res.user_id}，请登录`);
       activeTab.value = 'login';
       loginForm.value.username = regForm.value.username;
     }
   } catch (err) {
-    ElMessage.error(err.response?.data?.detail || '网络请求失败，请检查后端是否启动');
+    // 兼容拦截器脱壳后的报错信息
+    ElMessage.error(err.response?.data?.detail || err.message || '操作失败');
   } finally {
     loading.value = false;
   }
@@ -86,7 +83,7 @@ const handleAuth = async (action) => {
   justify-content: center;
   align-items: center;
   background-color: #f0f3f5;
-  background-image: url('https://picsum.photos/1920/1080?blur=5'); /* 电影感模糊背景 */
+  background-image: url('https://picsum.photos/1920/1080?blur=5');
   background-size: cover;
 }
 .login-card {
@@ -98,7 +95,7 @@ const handleAuth = async (action) => {
   text-align: center;
   font-size: 24px;
   font-weight: bold;
-  color: #00B51D; /* 豆瓣绿 */
+  color: #00B51D;
   margin-bottom: 20px;
 }
 .submit-btn {

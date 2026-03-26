@@ -4,6 +4,7 @@ import pandas as pd
 from surprise import dump
 from collections import Counter
 
+
 class RecommenderService:
     def __init__(self):
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -27,23 +28,31 @@ class RecommenderService:
         if not m_path or not r_path:
             raise FileNotFoundError("❌ 找不到清洗后的数据 CSV 文件！")
 
+        # 🌟 核心：确保这两行数据加载代码绝对存在！
         self.movies_df = pd.read_csv(m_path).fillna('')
         self.ratings_df = pd.read_csv(r_path)
 
-        # 🌟 核心修复：根据截图显示的表头进行精准映射
-        col_map = {
+        # 🌟 核心修复：将电影表和评分表的映射分开，防止“评分”字段冲突
+        col_map_movies = {
             '电影名': 'title',
-            '评分': 'douban_score',
+            '评分': 'douban_score',  # 电影库的“评分”映射为豆瓣平均分
             '类型': 'genres',
             '特色': 'features',
             '主演': 'actors',
             '地区': 'region',
             '导演': 'director',
-            '用户ID': 'user_id',
             '电影ID': 'movie_id'
         }
-        self.movies_df = self.movies_df.rename(columns=col_map)
-        self.ratings_df = self.ratings_df.rename(columns=col_map)
+
+        col_map_ratings = {
+            '用户ID': 'user_id',
+            'movie_id': 'movie_id',
+            '电影ID': 'movie_id',
+            '评分': 'rating'  # 🌟 评分表的“评分”映射为 rating，解决 KeyError
+        }
+
+        self.movies_df = self.movies_df.rename(columns=col_map_movies)
+        self.ratings_df = self.ratings_df.rename(columns=col_map_ratings)
 
         # 3. 加载训练指标
         metrics_path = os.path.join(base_dir, 'model', 'model_metrics.json')
@@ -128,7 +137,8 @@ class RecommenderService:
                 {"word": "值得二刷", "count": 540, "type": "info"}
             ],
             "comment_cards": [
-                {"movie": "肖申克的救赎", "content": "这不仅仅是一部电影，更是一种希望的象征。", "tag": "正面", "icon": "😊"},
+                {"movie": "肖申克的救赎", "content": "这不仅仅是一部电影，更是一种希望的象征。", "tag": "正面",
+                 "icon": "😊"},
                 {"movie": "霸王别姬", "content": "人戏不分，程蝶衣被演绎到了极致。", "tag": "正面", "icon": "😊"},
                 {"movie": "某平庸片", "content": "剧情注水，完全看不下去。", "tag": "负面", "icon": "😞"}
             ],
