@@ -34,6 +34,10 @@
             <el-icon><Menu /></el-icon>
             <span>个性化推荐</span>
           </el-menu-item>
+          <el-menu-item index="/prediction">
+           <el-icon><MagicStick /></el-icon>
+           <span>评分预测实验室</span>
+          </el-menu-item>
           <el-menu-item index="/analysis">
             <el-icon><DataAnalysis /></el-icon>
             <span>数据统计大屏</span>

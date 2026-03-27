@@ -21,12 +21,10 @@ export const reqRegister = (data) => request.post('/register', data);
 // 🌟 新增：请求首页 Top100 与分类电影榜单
 export const reqTopMovies = (genre = '全部', limit = 100) =>
   request.get(`/home/top_movies`, { params: { genre, limit } });
-
+export const reqMovieDetail = (movieId, userId) => request.get(`/movie/${movieId}`, { params: { user_id: userId } });
 export const reqRecommend = (userId, topN = 10) => request.get(`/recommend/${userId}?top_n=${topN}`);
 export const reqStatistics = () => request.get('/statistics');
 export const reqInsight = () => request.get('/insight');
-export const reqMovieDetail = (movieId, userId) => request.get(`/movie/${movieId}`, { params: { user_id: userId } });
-//export const reqMovieDetail = (movieId, userId) => request.get(`/movie/${movieId}`, { params: { user_id: userId } });
 export const reqSearchMovies = (keyword) => request.get('/movies/search', { params: { keyword } });
 export const reqWordcloud = (userId) => request.get(`/user/${userId}/wordcloud`);
 
