@@ -19,3 +19,5 @@ dist/
 # 操作系统忽略项
 .DS_Store
 Thumbs.db
+# 忽略环境变量配置
+.env

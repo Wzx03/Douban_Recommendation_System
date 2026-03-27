@@ -1,14 +1,15 @@
 import { createRouter, createWebHistory } from 'vue-router'
-// 1. 导入所有的页面组件
 import Login from '../views/Login.vue'
 import Recommend from '../views/Recommend.vue'
 import Analysis from '../views/Analysis.vue'
-import Insight from '../views/Insight.vue' // 🌟 修复：引入刚才写好的评论洞察页面
+import Insight from '../views/Insight.vue'
+import Home from '../views/Home.vue' // 🌟 新增：引入首页组件
+import Prediction from '../views/Prediction.vue'
 
 const routes = [
   {
     path: '/',
-    redirect: '/login'
+    redirect: '/home' // 🌟 修改：默认进入系统首页
   },
   {
     path: '/login',
@@ -16,9 +17,18 @@ const routes = [
     component: Login
   },
   {
+    path: '/home', // 🌟 新增：注册首页路由
+    name: 'Home',
+    component: Home
+  },
+  {
     path: '/recommend',
     name: 'Recommend',
     component: Recommend
+  },
+  { path: '/prediction',
+    name: 'Prediction',
+    component: Prediction
   },
   {
     path: '/analysis',
@@ -26,7 +36,7 @@ const routes = [
     component: Analysis
   },
   {
-    path: '/insight', // 🌟 修复：注册 /insight 路由映射
+    path: '/insight',
     name: 'Insight',
     component: Insight
   }
@@ -37,16 +47,11 @@ const router = createRouter({
   routes
 })
 
-// 🌟 修复：使用 Vue Router 4 官方推荐的 return 写法，消除控制台 next() 黄色警告
 router.beforeEach((to, from) => {
   const isAuthenticated = localStorage.getItem('currentUserId');
-
-  // 如果去的不是登录页，且没有登录，强制重定向到登录页
   if (to.name !== 'Login' && !isAuthenticated) {
     return { name: 'Login' };
   }
-
-  // 验证通过，默认放行 (不需要再写 next() 啦)
   return true;
 })
 

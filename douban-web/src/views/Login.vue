@@ -60,7 +60,7 @@ const handleAuth = async (action) => {
       localStorage.setItem('currentUserId', res.user_id);
       localStorage.setItem('currentUserName', res.username);
       ElMessage.success('登录成功！');
-      router.push('/recommend');
+      router.push('/home');
     } else {
       const res = await reqRegister(form); // 🌟 调用 API
       ElMessage.success(`注册成功！您的用户ID为：${res.user_id}，请登录`);

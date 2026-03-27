@@ -1,10 +1,10 @@
 {
-    "rmse": 2.3163,
-    "mae": 1.8846,
+    "rmse": 2.355,
+    "mae": 1.9829,
     "best_params": {
         "n_epochs": 30,
         "lr_all": 0.005,
-        "reg_all": 0.02,
+        "reg_all": 0.1,
         "n_factors": 50
     }
 }

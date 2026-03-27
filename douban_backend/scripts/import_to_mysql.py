@@ -1,9 +1,11 @@
 import pandas as pd
 import numpy as np
 from sqlalchemy import create_engine, text
-
+import os
+from dotenv import load_dotenv
+load_dotenv()
 # 1. 数据库连接
-db_password = 'Wzx031017'
+db_password = os.getenv('DB_PASSWORD')
 engine = create_engine(f'mysql+pymysql://root:{db_password}@localhost:3306/douban_rec_sys?charset=utf8mb4')
 
 print("正在加载数据...")

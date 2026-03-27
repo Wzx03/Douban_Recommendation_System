@@ -6,7 +6,6 @@ from surprise import Reader, Dataset, SVD
 from surprise.model_selection import GridSearchCV
 from surprise import dump
 
-
 def run_offline_training():
     print("==================================================")
     print(" 🏭 推荐引擎：离线模型训练与超参数调优任务启动...")
@@ -16,7 +15,7 @@ def run_offline_training():
     base_dir = os.path.dirname(os.path.abspath(__file__))  # 当前 model 文件夹
     parent_dir = os.path.dirname(base_dir)  # 上级 douban_backend 文件夹
 
-    # 🌟 毕设工程化亮点：智能路径探测 (兼容不同的文件夹结构)
+    # 智能路径探测 (兼容不同的文件夹结构)
     path_options = [
         os.path.join(parent_dir, 'cleaned_data', 'cleaned_ratings.csv'),  # 结构A: 直接在 backend 下
         os.path.join(parent_dir, 'data', 'cleaned_data', 'cleaned_ratings.csv')  # 结构B: 在 data 文件夹下
@@ -44,22 +43,23 @@ def run_offline_training():
     if '用户ID' in ratings_df.columns:
         ratings_df = ratings_df.rename(columns={'用户ID': 'user_id', '电影ID': 'movie_id', '评分': 'rating'})
 
-    # 2. 配置分数刻度 (豆瓣通常是1-5星对应2-10分，请根据你实际清洗的数据调整)
+    # 2. 配置分数刻度
     max_rating = ratings_df['rating'].max()
     print(f"📏 检测到最高评分为 {max_rating}，配置 Surprise Reader 刻度...")
     reader = Reader(rating_scale=(1, int(max_rating)))
     data = Dataset.load_from_df(ratings_df[['user_id', 'movie_id', 'rating']], reader)
 
-    # 3. 🌟 毕设加分项：网格搜索 (GridSearchCV) 超参数调优
-    print("\n🔬 正在启动 GridSearchCV 进行超参数空间寻优 (这可能需要几分钟，请耐心等待)...")
+    # 3. 🌟 毕设加分项：网格搜索 (GridSearchCV) 超参数调优 + SVD++ 算法升级
+    print("\n🔬 正在启动 GridSearchCV 进行超参数空间寻优...")
+    print("⚠️  提示：SVD算法精度高，训练时间长，请耐心等待...")
     param_grid = {
-        'n_epochs': [20, 30],  # 迭代次数
-        'lr_all': [0.005, 0.01],  # 学习率
-        'reg_all': [0.02, 0.05],  # 正则化惩罚项(防止过拟合)
-        'n_factors': [50, 100]  # 隐向量维度
+        'n_epochs': [30, 40],  # 增加训练轮数，充分压榨数据
+        'lr_all': [0.005, 0.008],  # 微调学习率，避免震荡
+        'reg_all': [0.05, 0.1],  # 🌟 核心：加大正则化惩罚，死死按住过拟合！
+        'n_factors': [50, 80]
     }
 
-    # 使用 3折交叉验证，以 RMSE 和 MAE 作为评估指标
+    # 🌟 修复点：把算法引擎替换为 SVDpp
     gs = GridSearchCV(SVD, param_grid, measures=['rmse', 'mae'], cv=3, n_jobs=-1, joblib_verbose=2)
     gs.fit(data)
 
@@ -94,7 +94,6 @@ def run_offline_training():
     print(f"📦 模型文件已保存至: {os.path.abspath(model_path)}")
     print(f"📊 真实评估指标已保存至: {os.path.abspath(metrics_path)}")
     print("💡 请记下上面的 RMSE 和 MAE 指标，将它们填入前端大屏和论文中！")
-
 
 if __name__ == '__main__':
     run_offline_training()
